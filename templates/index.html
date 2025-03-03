@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Folder Monitoring Status</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <h1>Folder Monitoring Status</h1>
+    <div class="status-container">
+        <table class="status-table">
+            <thead>
+                <tr>
+                    <th>SITE</th>
+                    <th>État</th>
+                    <th>Niveaux de progression</th>
+                </tr>
+            </thead>
+            <tbody id="status-container">
+                <!-- Dynamic Status Updates -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Function to fetch and update status dynamically
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/status');
+                const data = await response.text();
+                document.getElementById('status-container').innerHTML = data;
+            } catch (error) {
+                console.error('Error fetching status:', error);
+            }
+        }
+
+        // Initial fetch and periodic updates
+        fetchStatus();
+        setInterval(fetchStatus, 10000);
+    </script>
+</body>
+</html>
