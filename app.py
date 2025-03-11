@@ -67,61 +67,59 @@ previous_state = {folder_name: None for folder_name, _ in FOLDERS_TO_MONITOR}
 def monitor_folder(folder_name, folder_path):
     """
     Checks the status of a folder and returns an HTML row for the table.
-    Sends an email if the transfer is stopped and manages the email sending interval.
-    Sends a confirmation email if the transfer resumes.
+    Determines progress based on the highest number found in copy files.
     """
-    global last_email_sent_time, previous_state
+    global last_email_sent_time, last_known_state
 
-    count = 0
+    highest_copy_number = 0
     mfg_dat_count = 0  # Counter for 'mfg' files with '.dat' extension
-    current_state = "working"  # Default state
 
     try:
         for filename in os.listdir(folder_path):
-            if 'copy' in filename.lower():
-                count += 1
+            # Check if filename starts with 'copy' and contains a number
+            match = re.search(r'copy(\d+)', filename, re.IGNORECASE)
+            if match:
+                file_number = int(match.group(1))
+                highest_copy_number = max(highest_copy_number, file_number)
+
+            # Count 'mfg.dat' files to check if the transfer stopped
             if 'mfg' in filename.lower() and filename.lower().endswith('.dat'):
                 mfg_dat_count += 1
 
-        # Determine the current state
+        # Check if transfer is stopped
         if mfg_dat_count > 2:
             state = "<span class='error'><strong>Données non reçues(MFG)</strong></span>"
-            current_state = "stopped"
 
-            # Check if we need to send an email
-            current_time = time.time()
-            if (current_time - last_email_sent_time[folder_name]) > EMAIL_RESEND_INTERVAL:
+            # Send alert email if needed
+            if last_known_state[folder_name] != "stopped":
                 send_email_alert(
-                    f"Alert: Transfer Stopped for {folder_name}",
+                    f"⚠️ Alert: Transfer Stopped for {folder_name}",
                     f"The transfer has stopped for the site: {folder_name}. Please check the system."
                 )
-                last_email_sent_time[folder_name] = current_time
+                last_known_state[folder_name] = "stopped"
 
         else:
             state = "<span class='success'><strong>transfert en cours</strong></span>"
-            current_state = "working"
 
-        # Check if the state transitioned from "stopped" to "working"
-        if previous_state[folder_name] == "stopped" and current_state == "working":
-            send_email_alert(
-                f"Confirmation: Transfer Resumed for {folder_name}",
-                f"The transfer has resumed for the site: {folder_name}. No further action is required."
-            )
+            # Send email if transfer resumes
+            if last_known_state[folder_name] == "stopped":
+                send_email_alert(
+                    f"✅ Transfer Resumed for {folder_name}",
+                    f"The transfer has resumed for the site: {folder_name}. No action is needed."
+                )
+            
+            last_known_state[folder_name] = "running"
 
-        # Update the previous state
-        previous_state[folder_name] = current_state
-
-        # Return HTML row
+        # Return table row with highest copy number as progress
         return f"""
             <tr>
                 <td><strong>{folder_name}</strong></td>
                 <td>{state}</td>
-                <td>{count}</td>
+                <td>{highest_copy_number}</td>
             </tr>
         """
 
     except Exception as e:
-        # Handle exceptions and return an error row
         return f"""
             <tr>
                 <td><strong>{folder_name}</strong></td>
