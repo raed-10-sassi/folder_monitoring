@@ -6,6 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
+import re
 
 app = Flask(__name__)
 
@@ -26,7 +27,7 @@ SMTP_SERVER = "192.168.160.169"  # SMTP server address
 SMTP_PORT = 25  # SMTP port
 FROM_EMAIL = "raed.sassi@sna.com.tn"  # Sender email
 #TO_EMAIL = "raed.sassi@sna.com.tn, sassi.raed10@gmail.com"  # Recipient email
-TO_EMAIL = ["Jouda Rebai/SNA/POULINA"]
+TO_EMAIL = ["Jouda Reabai/SNA/POULINAzz"]
 TO_EMAILS = ", ".join(TO_EMAIL)
 
 EMAIL_SUBJECT = "Folder Monitoring Status"
@@ -62,36 +63,55 @@ def send_email_alert(subject, body):
 
 
 # Track the previous state of each folder
-previous_state = {folder_name: None for folder_name, _ in FOLDERS_TO_MONITOR}
+# Dictionary to track the last known state of each folder
+last_known_state = {}
 
 def monitor_folder(folder_name, folder_path):
-    """
-    Checks the status of a folder and returns an HTML row for the table.
-    Determines progress based on the highest number found in copy files.
-    """
     global last_email_sent_time, last_known_state
 
     highest_copy_number = 0
+    last_transferred_file = "N/A"
+    latest_timestamp = 0  # Start with a numeric value
     mfg_dat_count = 0  # Counter for 'mfg' files with '.dat' extension
 
     try:
-        for filename in os.listdir(folder_path):
-            # Check if filename starts with 'copy' and contains a number
-            match = re.search(r'copy(\d+)', filename, re.IGNORECASE)
-            if match:
-                file_number = int(match.group(1))
-                highest_copy_number = max(highest_copy_number, file_number)
+        # ✅ Use `os.scandir()` instead of `os.listdir()`
+        with os.scandir(folder_path) as entries:
+            for entry in entries:
+                if not entry.is_file():  # Skip directories
+                    continue
 
-            # Count 'mfg.dat' files to check if the transfer stopped
-            if 'mfg' in filename.lower() and filename.lower().endswith('.dat'):
-                mfg_dat_count += 1
+                filename = entry.name
+                file_path = entry.path
 
-        # Check if transfer is stopped
+                # ✅ Extract number from 'copyXXX' files
+                match = re.search(r'copy(\d+)', filename, re.IGNORECASE)
+                if match:
+                    file_number = int(match.group(1))
+                    highest_copy_number = max(highest_copy_number, file_number)
+
+                    # ✅ Use `os.stat(entry).st_mtime` instead of `getctime()`
+                    file_timestamp = entry.stat().st_mtime  
+
+                    if file_timestamp > latest_timestamp:
+                        latest_timestamp = file_timestamp
+                        last_transferred_file = filename
+
+                # ✅ Only count '.dat' files that start with 'mfg'
+                if filename.lower().startswith('mfg') and filename.lower().endswith('.dat'):
+                    mfg_dat_count += 1
+
+        # ✅ Convert timestamp only if a valid file was found
+        last_transferred_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(latest_timestamp)) if latest_timestamp > 0 else "N/A"
+
+        # ✅ Ensure `last_known_state` has a default value
+        previous_state = last_known_state.get(folder_name, "running")
+
+        # ✅ Optimize transfer check logic
         if mfg_dat_count > 2:
-            state = "<span class='error'><strong>Données non reçues(MFG)</strong></span>"
+            state = "<span class='error'><strong>Données non reçues (MFG)</strong></span>"
 
-            # Send alert email if needed
-            if last_known_state[folder_name] != "stopped":
+            if previous_state != "stopped":
                 send_email_alert(
                     f"⚠️ Alert: Transfer Stopped for {folder_name}",
                     f"The transfer has stopped for the site: {folder_name}. Please check the system."
@@ -99,23 +119,23 @@ def monitor_folder(folder_name, folder_path):
                 last_known_state[folder_name] = "stopped"
 
         else:
-            state = "<span class='success'><strong>transfert en cours</strong></span>"
+            state = "<span class='success'><strong>Transfert en cours</strong></span>"
 
-            # Send email if transfer resumes
-            if last_known_state[folder_name] == "stopped":
+            if previous_state == "stopped":
                 send_email_alert(
                     f"✅ Transfer Resumed for {folder_name}",
                     f"The transfer has resumed for the site: {folder_name}. No action is needed."
                 )
-            
+
             last_known_state[folder_name] = "running"
 
-        # Return table row with highest copy number as progress
         return f"""
             <tr>
                 <td><strong>{folder_name}</strong></td>
                 <td>{state}</td>
                 <td>{highest_copy_number}</td>
+              
+                <td>{last_transferred_time}</td>
             </tr>
         """
 
@@ -124,6 +144,8 @@ def monitor_folder(folder_name, folder_path):
             <tr>
                 <td><strong>{folder_name}</strong></td>
                 <td class="warning">Erreur: {str(e)}</td>
+                <td>-</td>
+                <td>-</td>
                 <td>-</td>
             </tr>
         """
