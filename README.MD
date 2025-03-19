@@ -1,0 +1,1 @@
+This web application allows you to track all the folders in the cloud server, each folder contains files created from 1 to 9999, you can see on the web that there are many locations, each location has a folder with these files created from 1 to 9999 
