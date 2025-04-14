@@ -15,7 +15,7 @@ FOLDERS_TO_MONITOR = [
     ("NUTRIMIX", r"\\10.88.1.237\d\DATA\NUTRIMIX\TRANSFER\OUT"),
     ("SNA_ALM", r"\\10.40.1.237\d\SNA\transfer"),
     ("GLO", r"\\10.88.1.236\eregest"),
-    ("CMV_SNA", r"\\10.40.1.237\d\SNACMV\TRANSFER"),
+    ("CMV_SNA", r"\\10.40.1.167\D\DATA\snacmv\transfer"),
     ("Cedria", r"\\10.40.1.162\eregest"),
     ("Sidi el heni", r"\\10.43.1.20\mfgpro\EREGEST"),
     
